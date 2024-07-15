@@ -4,10 +4,15 @@ version = "0.1.0"
 description = ""
 authors = ["gvsheva <3405066+gvsheva@users.noreply.github.com>"]
 readme = "README.md"
+packages = [
+    {include = "notes"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
 
+[tool.poetry.scripts]
+notes = "notes:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
