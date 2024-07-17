@@ -7,7 +7,9 @@ import readline
 import shelve
 import shlex
 import sys
+from functools import wraps
 from pathlib import Path
+from typing import Callable
 
 
 def error(msg):
@@ -25,12 +27,14 @@ def confirm(prompt):
 
 
 class ArgumentError(ValueError):
-    pass
+    def __init__(self, message: str, help: str):
+        super().__init__(message)
+        self.help = help
 
 
 class ArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        raise ArgumentError(message)
+        raise ArgumentError(message, self.format_help())
 
 
 class Cmd(cmd.Cmd):
@@ -89,9 +93,25 @@ def phone(s: str):
     return s
 
 
+def handle_error(func: Callable):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ArgumentError as ex:
+            error(str(ex))
+            error(ex.help)
+    return wrapper
+
+
 class ContactsCmd(Cmd):
     confirm_exit = False
     say_goodbye = False
+
+    _add_parser: ArgumentParser
+    _edit_parser: ArgumentParser
+    _delete_parser: ArgumentParser
+    _wipe_parser: ArgumentParser
 
     def __init__(self, contacts_db: shelve.Shelf):
         super().__init__()
@@ -123,16 +143,12 @@ class ContactsCmd(Cmd):
         self._wipe_parser.add_argument(
             "-f", "--force", action="store_true", help="Force deletion of all contacts")
 
+    @handle_error
     def do_add(self, arg):
         """
         Add a new contact
         """
-        try:
-            args = self._add_parser.parse_args(shlex.split(arg))
-        except ValueError as ex:
-            error(str(ex))
-            error(self._add_parser.format_help())
-            return
+        args = self._add_parser.parse_args(shlex.split(arg))
         if args.name in self._contacts_db:
             error(f"Contact {args.name} already exists")
             return
@@ -142,16 +158,12 @@ class ContactsCmd(Cmd):
     def help_add(self):
         print(self._add_parser.format_help())
 
+    @handle_error
     def do_edit(self, arg):
         """
         Edit an existing contact
         """
-        try:
-            args = self._edit_parser.parse_args(shlex.split(arg))
-        except ValueError as ex:
-            error(str(ex))
-            error(self._edit_parser.format_help())
-            return
+        args = self._edit_parser.parse_args(shlex.split(arg))
         if args.name not in self._contacts_db:
             error(f"Contact {args.name} does not exist")
             return
@@ -161,16 +173,12 @@ class ContactsCmd(Cmd):
     def help_edit(self):
         print(self._edit_parser.format_help())
 
+    @handle_error
     def do_delete(self, arg):
         """
         Delete a contact
         """
-        try:
-            args = self._delete_parser.parse_args(shlex.split(arg))
-        except ValueError as ex:
-            error(str(ex))
-            error(self._delete_parser.format_help())
-            return
+        args = self._delete_parser.parse_args(shlex.split(arg))
         if args.name not in self._contacts_db:
             error(f"Contact {args.name} does not exist")
             return
@@ -189,16 +197,12 @@ class ContactsCmd(Cmd):
         for name, phone in self._contacts_db.items():
             print(f"{name}: {phone}")
 
+    @handle_error
     def do_wipe(self, arg):
         """
         Delete all contacts
         """
-        try:
-            args = self._wipe_parser.parse_args(shlex.split(arg))
-        except ValueError as ex:
-            error(str(ex))
-            error(self._wipe_parser.format_help())
-            return
+        args = self._wipe_parser.parse_args(shlex.split(arg))
         if not args.force and not confirm("Are you sure you want to delete all contacts?"):
             return
         self._contacts_db.clear()
