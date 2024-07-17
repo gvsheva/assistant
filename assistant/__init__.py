@@ -101,6 +101,8 @@ def handle_error(func: Callable):
         except ArgumentError as ex:
             error(str(ex))
             error(ex.help)
+        except ValueError as ex:
+            error(str(ex))
     return wrapper
 
 
@@ -212,7 +214,7 @@ class ContactsCmd(Cmd):
         print(self._wipe_parser.format_help())
 
 
-class NotesApp(Cmd):
+class AssistantApp(Cmd):
     def __init__(
             self,
             contacts_cmd: ContactsCmd,
@@ -264,23 +266,24 @@ def write_history(path: Path):
 
 
 def main():
-    init_file = Path(os.environ.get("NOTES_INIT_FILE", ".notes_init"))
+    init_file = Path(os.environ.get("ASSISTANT_INIT_FILE", ".assistant_init"))
     read_init_file(init_file)
 
-    history_file = Path(os.environ.get("NOTES_HISTORY_FILE", ".notes_history"))
+    history_file = Path(os.environ.get(
+        "ASSISTANT_HISTORY_FILE", ".assistant_history"))
     read_history(history_file)
     atexit.register(write_history, history_file)
 
-    dbdir = Path(os.environ.get("NOTES_DB_DIR", "."))
+    dbdir = Path(os.environ.get("ASSISTANT_DB_DIR", "."))
     contacts_db = shelve.open(str(dbdir / "contacts"))
     atexit.register(contacts_db.close)
 
     contacts_cmd = ContactsCmd(contacts_db)
-    app = NotesApp(
+    app = AssistantApp(
         contacts_cmd,
     )
-    app.prompt = "notes> "
+    app.prompt = f"hello, {os.environ.get('USER', 'user')} > "
     if len(sys.argv) > 1:
         app.onecmd(shlex.join(sys.argv[1:]))
     else:
-        app.cmdloop("Welcome to the notes app!")
+        app.cmdloop("Welcome to the assistant app!")
