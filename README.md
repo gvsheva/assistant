@@ -20,7 +20,7 @@ assistant help
 For example, to add a contact:
 
 ```sh
-assistant contacts add "John Doe" 012-345-6789
+assistant contacts add "John Doe" 0123456789 --type work
 ```
 
 ## Run dev code
