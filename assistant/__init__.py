@@ -1,15 +1,20 @@
 import argparse
 import atexit
 import cmd
+from functools import wraps
 import os
-import re
+from pathlib import Path
 import readline
 import shelve
 import shlex
 import sys
-from functools import wraps
-from pathlib import Path
 from typing import Callable
+
+from assistant.model import Contact
+from assistant.model import Name
+from assistant.model import Phone
+from assistant.model import PhoneType
+from assistant.model import PhoneValue
 
 
 def error(msg):
@@ -79,20 +84,6 @@ class Cmd(cmd.Cmd):
             print("")
 
 
-def name(s: str):
-    if not s.strip():
-        raise ValueError("Name cannot be empty")
-    return s
-
-
-def phone(s: str):
-    if not s.strip():
-        raise ValueError("Phone number cannot be empty")
-    if not re.match(r"^\d{3}-\d{3}-\d{4}$", s):
-        raise ValueError("Phone number must be in the format XXX-XXX-XXXX")
-    return s
-
-
 def handle_error(func: Callable):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -122,21 +113,29 @@ class ContactsCmd(Cmd):
         self._add_parser = ArgumentParser(
             "add", add_help=False)
         self._add_parser.add_argument(
-            "name", type=name, help="Name of the contact")
+            "name", type=Name, help="Name of the contact")
         self._add_parser.add_argument(
-            "phone", type=phone, help="Phone number of the contact (XXX-XXX-XXXX)")
+            "phone", type=PhoneValue, help="Phone number of the contact (XXXXXXXXXX)")
+        self._add_parser.add_argument("--type", type=PhoneType, default=PhoneType.MOBILE,
+                                      help="Type of the phone number (home, mobile, work)")
 
         self._edit_parser = ArgumentParser(
             "edit", add_help=False)
         self._edit_parser.add_argument(
-            "name", type=name, help="Name of the contact")
+            "name", type=Name, help="Name of the contact")
         self._edit_parser.add_argument(
-            "phone", type=phone, help="Phone number of the contact (XXX-XXX-XXXX)")
+            "index", type=int, help="Index of the phone number to edit")
+        self._edit_parser.add_argument(
+            "--phone", type=PhoneValue, default=None, help="Phone number of the contact (XXXXXXXXXX)")
+        self._edit_parser.add_argument(
+            "--type", type=PhoneType, default=None, help="Type of the phone number (home, mobile, work)")
 
         self._delete_parser = ArgumentParser(
             "delete", add_help=False)
         self._delete_parser.add_argument(
-            "name", type=name, help="Name of the contact")
+            "name", type=Name, help="Name of the contact to delete")
+        self._delete_parser.add_argument(
+            "index", type=int, help="Index of the phone number to delete")
         self._delete_parser.add_argument(
             "-f", "--force", action="store_true", help="Force deletion of the contact")
 
@@ -151,11 +150,12 @@ class ContactsCmd(Cmd):
         Add a new contact
         """
         args = self._add_parser.parse_args(shlex.split(arg))
-        if args.name in self._contacts_db:
-            error(f"Contact {args.name} already exists")
-            return
-        self._contacts_db[args.name] = args.phone
-        print(f"Added {args.name} with phone number {args.phone}")
+        contact = self._contacts_db.get(args.name, None)
+        if contact is None:
+            contact = Contact(args.name)
+        contact.add_phone(Phone(args.phone, args.type))
+        self._contacts_db[args.name] = contact
+        print(f"New phone number {args.phone} has been added to {args.name}")
 
     def help_add(self):
         print(self._add_parser.format_help())
@@ -169,8 +169,22 @@ class ContactsCmd(Cmd):
         if args.name not in self._contacts_db:
             error(f"Contact {args.name} does not exist")
             return
-        self._contacts_db[args.name] = args.phone
-        print(f"Updated {args.name} with phone number {args.phone}")
+        contact = self._contacts_db[args.name]
+        if args.index >= len(contact.phones):
+            error(f"Phone number index {args.index} out of range")
+            return
+        updated = False
+        if args.phone is not None:
+            contact.phones[args.index].phone = args.phone
+            updated = True
+        if args.type is not None:
+            contact.phones[args.index].type = args.type
+            updated = True
+        if updated:
+            self._contacts_db[args.name] = contact
+            print(f"Updated {args.name}")
+        else:
+            print(f"Nothing to update for {args.name}")
 
     def help_edit(self):
         print(self._edit_parser.format_help())
@@ -184,9 +198,17 @@ class ContactsCmd(Cmd):
         if args.name not in self._contacts_db:
             error(f"Contact {args.name} does not exist")
             return
-        if not args.force and not confirm(f"Are you sure you want to delete {args.name}?"):
+        if not args.force and not confirm(f"Are you sure you want to delete a phone number from {args.name}?"):
             return
-        del self._contacts_db[args.name]
+        contact = self._contacts_db[args.name]
+        if args.index >= len(contact.phones):
+            error(f"Phone number index {args.index} out of range")
+            return
+        del contact.phones[args.index]
+        if not contact.phones and args.force or confirm(f"Delete {args.name} completely?"):
+            del self._contacts_db[args.name]
+        else:
+            self._contacts_db[args.name] = contact
         print(f"Deleted {args.name}")
 
     def help_delete(self):
@@ -196,8 +218,10 @@ class ContactsCmd(Cmd):
         """
         List all contacts
         """
-        for name, phone in self._contacts_db.items():
-            print(f"{name}: {phone}")
+        for name, record in self._contacts_db.items():
+            print(f"{name}:")
+            for i, phone in enumerate(record.phones):
+                print(f"  {i}: {phone}")
 
     @handle_error
     def do_wipe(self, arg):
