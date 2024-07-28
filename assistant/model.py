@@ -1,4 +1,5 @@
 from collections import UserString
+from datetime import datetime
 from enum import StrEnum
 import re
 
@@ -12,6 +13,10 @@ class InvalidNameError(ModelError):
 
 
 class InvalidPhoneError(ModelError):
+    ...
+
+
+class InvalidBirthdayError(ModelError):
     ...
 
 
@@ -44,10 +49,23 @@ class Phone:
         return f"{self.phone} ({self.type})"
 
 
-class Contact:
-    def __init__(self, name: Name):
+class Birthday:
+    def __init__(self, birthday: str):
+        try:
+            v = datetime.strptime(birthday, "%Y.%m.%d")
+        except ValueError:
+            raise InvalidBirthdayError("Invalid date format. Use DD.MM.YYYY")
+        self.birthday = v
+
+    def __str__(self):
+        return f"{self.birthday}"
+
+
+class Record:
+    def __init__(self, name: Name, birthday: Birthday | None = None):
         self.name = name
         self.phones: list[Phone] = []
+        self.birthday = birthday
 
     def __str__(self):
         return f"Contact name: {self.name}, phones: {'; '.join(str(p) for p in self.phones)}"
@@ -60,3 +78,9 @@ class Contact:
 
     def delete_phone(self, index: int):
         del self.phones[index]
+
+    def set_birthday(self, birthday: Birthday):
+        self.birthday = birthday
+
+    def clear_birthday(self):
+        self.birthday = None

@@ -3,7 +3,7 @@
 ## Installation
 
 ```sh
-pip install dist/assistant-0.0.0a2.tar.gz
+pip install dist/assistant-0.0.0a5.tar.gz
 ```
 
 ## Usage
@@ -20,13 +20,19 @@ assistant help
 For example, to add a contact:
 
 ```sh
-assistant contacts add "John Doe" 0123456789 --type work
+assistant phones add "John Doe" 0123456789 --type work
 ```
 
-## Run dev code
+To set birthday:
 
 ```sh
-python -m assistant
+assistant birthdays set "John Doe" 1990.01.01
+```
+
+To show upcoming birthdays:
+
+```sh
+assistant birthdays upcoming
 ```
 
 or with `poetry`:
