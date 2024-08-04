@@ -10,6 +10,7 @@ from assistant.model import Phone
 from assistant.model import PhoneType
 from assistant.model import PhoneValue
 from assistant.model import Record
+from assistant import repos
 
 
 class Phones(Cmd):
@@ -21,7 +22,7 @@ class Phones(Cmd):
     _show_parser: CmdArgumentParser
     _delete_parser: CmdArgumentParser
 
-    def __init__(self, addressbook: shelve.Shelf, yes: bool):
+    def __init__(self, addressbook: repos.Repo[Record], yes: bool):
         super().__init__()
         self._addressbook = addressbook
         self._yes = yes
@@ -59,29 +60,25 @@ class Phones(Cmd):
         Add a new phone number
         """
         args = self._add_parser.parse_args(shlex.split(arg))
-        record = self._addressbook.get(args.name, None)
+        record = self._addressbook.get(args.name)
         if record is None:
             record = Record(args.name)
         record.add_phone(Phone(args.phone, args.type))
-        self._addressbook[args.name] = record
+        self._addressbook.set(args.name, record)
         print(f"New phone number {args.phone} has been added to {args.name}")
 
     def help_add(self):
         print(self._add_parser.format_help())
-
-    def complete_add(self, text, line, begidx, endidx):
-        print("complete_add")
-        return [name for name in self._addressbook if name.startswith(text)]
 
     def do_edit(self, arg):
         """
         Edit an existing phone number
         """
         args = self._edit_parser.parse_args(shlex.split(arg))
-        if args.name not in self._addressbook:
+        record = self._addressbook.get(args.name)
+        if record is None:
             error(f"Record {args.name} does not exist")
             return
-        record = self._addressbook[args.name]
         if not (0 <= args.index < len(record.phones)):
             error(f"Phone number index {args.index} out of range")
             return
@@ -93,7 +90,7 @@ class Phones(Cmd):
             record.phones[args.index].type = args.type
             updated = True
         if updated:
-            self._addressbook[args.name] = record
+            self._addressbook.set(args.name, record)
             print(f"Record {args.name} has been updated")
         else:
             print(f"Nothing to update for {args.name}")
@@ -106,10 +103,10 @@ class Phones(Cmd):
         Show all phone numbers for a record
         """
         args = self._show_parser.parse_args(shlex.split(arg))
-        if args.name not in self._addressbook:
+        record = self._addressbook.get(args.name)
+        if record is None:
             error(f"Record {args.name} does not exist")
             return
-        record = self._addressbook[args.name]
         if not record.phones:
             print(f"No phone numbers found for {args.name}")
         for i, phone in enumerate(record.phones):
@@ -123,17 +120,17 @@ class Phones(Cmd):
         Delete a phone number
         """
         args = self._delete_parser.parse_args(shlex.split(arg))
-        if args.name not in self._addressbook:
+        record = self._addressbook.get(args.name)
+        if record is None:
             error(f"Record {args.name} does not exist")
             return
         if not self._yes and not confirm(f"Are you sure you want to delete a phone number from {args.name}?"):
             return
-        record = self._addressbook[args.name]
         if not (0 <= args.index < len(record.phones)):
             error(f"Phone number index {args.index} out of range")
             return
         del record.phones[args.index]
-        self._addressbook[args.name] = record
+        self._addressbook.set(args.name, record)
         print(f"Deleted {args.name}")
 
     def help_delete(self):

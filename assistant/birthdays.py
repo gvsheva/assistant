@@ -9,6 +9,7 @@ from assistant.common import error
 from assistant.model import Birthday
 from assistant.model import Name
 from assistant.model import Record
+from assistant import repos
 
 
 class Birthdays(Cmd):
@@ -19,7 +20,7 @@ class Birthdays(Cmd):
     _show_parser: CmdArgumentParser
     _clear_parser: CmdArgumentParser
 
-    def __init__(self, addressbook, yes: bool):
+    def __init__(self, addressbook: repos.Repo[Record], yes: bool):
         super().__init__()
         self._addressbook = addressbook
         self._yes = yes
@@ -43,11 +44,11 @@ class Birthdays(Cmd):
         Set birthday to a record, create one if it doesn't exist
         """
         args = self._set_parser.parse_args(shlex.split(arg))
-        record = self._addressbook.get(args.name, None)
+        record = self._addressbook.get(args.name)
         if record is None:
             record = Record(args.name)
         record.set_birthday(args.birthday)
-        self._addressbook[args.name] = record
+        self._addressbook.set(args.name, record)
         print(f"Birthday has been added to record {args.name}")
 
     def help_set(self):
@@ -58,10 +59,10 @@ class Birthdays(Cmd):
         Show birthday of a record
         """
         args = self._show_parser.parse_args(shlex.split(arg))
-        if args.name not in self._addressbook:
+        record = self._addressbook.get(args.name)
+        if record is None:
             error(f"Record {args.name} does not exist")
             return
-        record = self._addressbook[args.name]
         if record.birthday is None:
             print(f"{args.name} has no birthday")
         else:
@@ -76,14 +77,14 @@ class Birthdays(Cmd):
         Clear birthday from a record
         """
         args = self._clear_parser.parse_args(shlex.split(arg))
-        if args.name not in self._addressbook:
+        record = self._addressbook.get(args.name)
+        if record is None:
             error(f"Record {args.name} does not exist")
             return
         if not self._yes and not confirm(f"Are you sure you want to clear birthday from {args.name}?"):
             return
-        record = self._addressbook[args.name]
         record.clear_birthday()
-        self._addressbook[args.name] = record
+        self._addressbook.set(args.name, record)
         print(f"Birthday has been cleared from record {args.name}")
 
     def help_clear(self):

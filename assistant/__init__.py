@@ -3,19 +3,20 @@ import atexit
 import os
 from pathlib import Path
 import readline
-import shelve
 import shlex
 
 from assistant.birthdays import Birthdays
 from assistant.common import Cmd
 from assistant.common import confirm
+from assistant.model import Record
 from assistant.phones import Phones
+from assistant.repos import Repo, RepoType, PickleRepo, ShelveRepo
 
 
 class AssistantApp(Cmd):
     def __init__(
             self,
-            addressbook: shelve.Shelf,
+            addressbook: Repo[Record],
             phones: Phones,
             birthdays: Birthdays,
             yes: bool,
@@ -106,6 +107,31 @@ def main():
     ap = ArgumentParser()
     ap.add_argument("-y", "--yes", action="store_true",
                     help="Answer yes to all questions")
+    ap.add_argument(
+        "--repo-type",
+        type=RepoType,
+        choices=list(RepoType),
+        default=RepoType.PICKLE,
+        help="Repository type",
+    )
+    ap.add_argument(
+        "--repo-pickle-filepath",
+        type=Path,
+        default=Path("addressbook.pickle"),
+        help="Path to the pickle file",
+    )
+    ap.add_argument(
+        "--repo-shelve-db-dir",
+        type=Path,
+        default=Path("."),
+        help="Path to the shelve db directory",
+    )
+    ap.add_argument(
+        "--repo-shelve-db-name",
+        type=str,
+        default="addressbook",
+        help="Name of the shelve db",
+    )
     args, cmd_args = ap.parse_known_args()
 
     init_file = Path(os.environ.get("ASSISTANT_INIT_FILE", ".assistant_init"))
@@ -116,20 +142,24 @@ def main():
     read_history(history_file)
     atexit.register(write_history, history_file)
 
-    dbdir = Path(os.environ.get("ASSISTANT_DB_DIR", "."))
-    addressbook = shelve.open(str(dbdir / "addressbook"))
-    atexit.register(addressbook.close)
-
-    phones = Phones(addressbook, args.yes)
-    birthdays = Birthdays(addressbook, args.yes)
-    app = AssistantApp(
-        addressbook,
-        phones,
-        birthdays,
-        args.yes,
-    )
-    app.prompt = f"hello, {os.environ.get('USER', 'user')} > "
-    if len(cmd_args) > 0:
-        app.onecmd(shlex.join(cmd_args))
-    else:
-        app.cmdloop("Welcome to the assistant app!")
+    match args.repo_type:
+        case RepoType.PICKLE:
+            repo = PickleRepo[Record](args.repo_pickle_filepath)
+        case RepoType.SHELVE:
+            repo = ShelveRepo[Record](args.repo_shelve_db_dir, args.repo_shelve_db_name)
+        case _:
+            raise ValueError(f"Unsupported repo type: {args.repo_type}")
+    with repo as addressbook:
+        phones = Phones(addressbook, args.yes)
+        birthdays = Birthdays(addressbook, args.yes)
+        app = AssistantApp(
+            addressbook,
+            phones,
+            birthdays,
+            args.yes,
+        )
+        app.prompt = f"hello, {os.environ.get('USER', 'user')} > "
+        if len(cmd_args) > 0:
+            app.onecmd(shlex.join(cmd_args))
+        else:
+            app.cmdloop("Welcome to the assistant app!")

@@ -2,16 +2,17 @@ import argparse
 import cmd
 import readline
 import sys
+from typing import Literal
 
 
 def error(msg):
     print(msg, file=sys.stderr)
 
 
-def confirm(prompt):
+def confirm(prompt: str, default: Literal["y"] | Literal["n"] = "n"):
     while True:
         try:
-            response = input(prompt + " [y/n] ").strip().lower()
+            response = input(f"{prompt} [y/n] (default={default}): ").strip().lower() or default
         except EOFError:
             response = "n"
         if response in {"y", "n"}:
@@ -38,7 +39,7 @@ class Cmd(cmd.Cmd):
         Exit the application
         """
         if self.confirm_exit:
-            if confirm("Exit the application?"):
+            if confirm("Exit the application?", "y"):
                 self.goodbye()
                 return True
             return
@@ -61,7 +62,7 @@ class Cmd(cmd.Cmd):
                 break
             except KeyboardInterrupt:
                 print("^C")
-                if readline.get_line_buffer() == "" and confirm("Exit the application?"):
+                if readline.get_line_buffer() == "" and confirm("Exit the application?", "n"):
                     break
 
     def onecmd(self, line):

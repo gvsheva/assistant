@@ -3,7 +3,7 @@
 ## Installation
 
 ```sh
-pip install dist/assistant-0.0.0a5.tar.gz
+pip install dist/assistant-0.0.0a6.tar.gz
 ```
 
 ## Usage
