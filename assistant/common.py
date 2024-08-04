@@ -79,11 +79,16 @@ class Cmd(cmd.Cmd):
             error(str(ex))
 
     def default(self, line):
+        candidates = []
         for candidate in self._all_commands():
-            if fuzz.ratio(candidate, line) > 80:
-                error(f"Unknown command: {line}, did you mean {candidate}?")
-                return
-        error(f"Unknown command: {line}")
+            rat = fuzz.ratio(candidate, line)
+            if rat > 0:
+                candidates.append((rat, candidate))
+        if candidates:
+            candidates.sort(reverse=True)
+            error(f"Unknown command: {line}, did you mean {candidates[0][1]}?")
+        else:
+            error(f"Unknown command: {line}")
 
     def goodbye(self):
         if self.say_goodbye:
