@@ -3,6 +3,7 @@ import cmd
 import readline
 import sys
 from typing import Literal
+from thefuzz import fuzz
 
 
 def error(msg):
@@ -33,6 +34,9 @@ class CmdArgumentParser(argparse.ArgumentParser):
 class Cmd(cmd.Cmd):
     confirm_exit = True
     say_goodbye = True
+
+    def _all_commands(self):
+        return [name[3:] for name in dir(self) if name.startswith("do_")]
 
     def do_exit(self, arg):
         """
@@ -73,6 +77,13 @@ class Cmd(cmd.Cmd):
             error(ex.help)
         except ValueError as ex:
             error(str(ex))
+
+    def default(self, line):
+        for candidate in self._all_commands():
+            if fuzz.ratio(candidate, line) > 80:
+                error(f"Unknown command: {line}, did you mean {candidate}?")
+                return
+        error(f"Unknown command: {line}")
 
     def goodbye(self):
         if self.say_goodbye:
